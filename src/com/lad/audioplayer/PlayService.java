@@ -1,86 +1,101 @@
 package com.lad.audioplayer;
 
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Intent;
-import android.media.AudioManager;
 import android.media.MediaPlayer;
 import android.media.MediaPlayer.OnCompletionListener;
 import android.os.Binder;
 import android.os.IBinder;
+import android.support.v4.app.NotificationCompat;
+
 
 public class PlayService extends Service implements OnCompletionListener {
 
-	MediaPlayer mp;
-	MyBinder binder=new MyBinder();
-	AudioManager am;
-	Intent intent;
-	int status=PlayerActivity.STATUS_IDLE;
+	private MediaPlayer mediaPlayer;
+	private MyBinder binder = new MyBinder();
+	private Intent intentBroadcast;
+
+	public enum Status_Player {
+		PLAY, PAUSE, IDLE
+	};
+
+	private Status_Player Current_Status = Status_Player.PLAY;
 	
-	
+
 	@Override
 	public IBinder onBind(Intent intent) {
-		// TODO Auto-generated method stub
 		return binder;
 	}
 
-	public void onCreate(){
+	public void onCreate() {
 		super.onCreate();
-		mp=MediaPlayer.create(this, R.raw.just_do_it);
-		mp.setOnCompletionListener(this);
-		//am = (AudioManager) getSystemService(AUDIO_SERVICE);
-		intent=new Intent(PlayerActivity.BROADCAST_STATUS_ACTION);
-		
-	}	
-	
-	
-	public void Play(){
-		mp.start();
-		status=PlayerActivity.STATUS_PLAY;
-		checkStatus();
+		mediaPlayer = MediaPlayer.create(this, R.raw.just_do_it);
+		mediaPlayer.setOnCompletionListener(this);
+		intentBroadcast = new Intent(PlayerActivity.BROADCAST_STATUS_ACTION);		
+		mediaPlayer.start();
+		sendNotif();
 	}
-	
-	public void Pause(){
-		mp.pause();
-		status=PlayerActivity.STATUS_PAUSE;	
-		checkStatus();
-		
+
+	public void Play() {
+		mediaPlayer.start();
+		Current_Status = Status_Player.PLAY;
+		sendBroadcast(intentBroadcast);
 	}
-	
-	public boolean isPlaying(){
-		return mp.isPlaying();
+
+	public void Pause() {
+		mediaPlayer.pause();
+		Current_Status = Status_Player.PAUSE;
+		sendBroadcast(intentBroadcast);
+
 	}
-	
-	public void checkStatus(){
-		switch(status){
-		case PlayerActivity.STATUS_PLAY:
-			intent.putExtra(PlayerActivity.PARAM_STATUS, PlayerActivity.STATUS_PLAY);
-			sendBroadcast(intent);
-			break;
-		case PlayerActivity.STATUS_PAUSE:
-			intent.putExtra(PlayerActivity.PARAM_STATUS, PlayerActivity.STATUS_PAUSE);
-			sendBroadcast(intent);
-			break;
-		case PlayerActivity.STATUS_IDLE:
-			intent.putExtra(PlayerActivity.PARAM_STATUS, PlayerActivity.STATUS_IDLE);
-			sendBroadcast(intent);
-			break;
+
+	public void callBroadcast() {
+		sendBroadcast(intentBroadcast);
+	}
+
+	public void playPause() {
+		if (Current_Status == Status_Player.PLAY)
+			Pause();
+		else
+			Play();
+	}
+
+	public void stopService() {
+		if (Current_Status == Status_Player.IDLE) {			
+			stopSelf();
 		}
+
 	}
-	
-	
+
+	public Status_Player checkStatus() {
+		return Current_Status;
+	}
 
 	@Override
 	public void onCompletion(MediaPlayer mp) {
-		// TODO Auto-generated method stub
-		status=PlayerActivity.STATUS_IDLE;
-		checkStatus();
+		Current_Status = Status_Player.IDLE;
+		sendBroadcast(intentBroadcast);
+		stopService();
 	}
 	
-	
-	class MyBinder extends Binder{
-	
-		PlayService getService(){
+	class MyBinder extends Binder {
+		PlayService getService() {
 			return PlayService.this;
 		}
+	}
+
+	private void sendNotif() {
+		Intent notificationIntent = new Intent(this, PlayerActivity.class);
+		NotificationCompat.Builder nBuilder = new NotificationCompat.Builder(
+				this)
+				.setSmallIcon(R.drawable.ic_launcher)
+				.setContentTitle("Playing music")
+				.setContentText("Music.mp3")
+				.setContentIntent(
+						PendingIntent.getActivity(this, 0, notificationIntent,
+								PendingIntent.FLAG_CANCEL_CURRENT))
+				.setAutoCancel(false);			
+		startForeground (1, nBuilder.build());
 	}
 }
